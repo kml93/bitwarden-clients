@@ -39,6 +39,7 @@ import { SystemService } from "@bitwarden/common/platform/abstractions/system.se
 import { ServerNotificationsService } from "@bitwarden/common/platform/server-notifications";
 import { StateEventRunnerService } from "@bitwarden/common/platform/state";
 import { SyncService } from "@bitwarden/common/platform/sync";
+import { mockAccountInfoWith } from "@bitwarden/common/spec";
 import { UserId } from "@bitwarden/common/types/guid";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
 import { InternalFolderService } from "@bitwarden/common/vault/abstractions/folder/folder.service.abstraction";
@@ -100,6 +101,9 @@ describe("AppComponent (desktop)", () => {
     accountSwitcherService.resolveActiveAccount.mockResolvedValue({ action: "keep" });
 
     accountService.activeAccount$ = of({ id: userId } as any);
+    accountService.accounts$ = of({
+      ["user-2" as UserId]: mockAccountInfoWith({ email: "user-2@example.com" }),
+    });
     (accountService as any).showHeader$ = EMPTY;
     ngZone.run.mockImplementation((fn: () => unknown) => (lastZoneRunResult = fn()) as any);
     ngZone.runOutsideAngular.mockImplementation((fn: () => unknown) => fn() as any);
@@ -257,14 +261,16 @@ describe("AppComponent (desktop)", () => {
   describe("switchAccount message", () => {
     const targetUserId = "user-2" as UserId;
 
-    it("navigates to login without syncing when the target account is logged out", async () => {
+    it("navigates to login with the account's email, without syncing, when the target account is logged out", async () => {
       authService.getAuthStatus.mockResolvedValue(AuthenticationStatus.LoggedOut);
 
       await dispatchMessage({ command: "switchAccount", userId: targetUserId });
 
       expect(accountService.switchAccount).toHaveBeenCalledWith(targetUserId);
       expect(modalService.closeAll).toHaveBeenCalled();
-      expect(router.navigate).toHaveBeenCalledWith(["login"]);
+      expect(router.navigate).toHaveBeenCalledWith(["login"], {
+        queryParams: { email: "user-2@example.com" },
+      });
       expect(router.navigate).not.toHaveBeenCalledWith(["vault"], expect.anything());
       expect(syncService.fullSync).not.toHaveBeenCalled();
       expect(messagingService.send).not.toHaveBeenCalledWith("unlocked");
@@ -382,7 +388,9 @@ describe("AppComponent (desktop)", () => {
         await resolveOnLoadThroughHandler();
 
         expect(accountService.switchAccount).toHaveBeenCalledWith(nextUserId);
-        expect(router.navigate).toHaveBeenCalledWith(["login"]);
+        expect(router.navigate).toHaveBeenCalledWith(["login"], {
+          queryParams: { email: "user-2@example.com" },
+        });
         expect(loadingDuringNavigation).toEqual([false]);
         expect(syncService.fullSync).not.toHaveBeenCalled();
       });

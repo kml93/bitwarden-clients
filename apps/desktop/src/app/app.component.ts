@@ -473,7 +473,14 @@ export class AppComponent implements OnInit, OnDestroy {
               // A logged-out account has nothing to sync and cannot open the vault. Leave `loading`
               // untouched: toggling it re-creates the router outlet, which remounts every routed
               // component and re-runs its initialization.
-              await this.router.navigate(["login"]);
+              // Pre-fill the email the account kept, so the user only has to pick a login method.
+              // The router drops an undefined query param.
+              const email = await firstValueFrom(
+                this.accountService.accounts$.pipe(
+                  map((accounts) => accounts[message.userId as UserId]?.email),
+                ),
+              );
+              await this.router.navigate(["login"], { queryParams: { email } });
             } else {
               this.messagingService.send("unlocked");
               this.loading = true;

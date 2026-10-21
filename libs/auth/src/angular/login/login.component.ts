@@ -11,7 +11,16 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
 import { ActivatedRoute, Params, Router, RouterModule } from "@angular/router";
-import { firstValueFrom, Subject, take, takeUntil, skip, combineLatest, startWith } from "rxjs";
+import {
+  firstValueFrom,
+  Subject,
+  take,
+  takeUntil,
+  skip,
+  combineLatest,
+  startWith,
+  switchMap,
+} from "rxjs";
 
 import { JslibModule } from "@bitwarden/angular/jslib.module";
 import { LockIcon, VaultIcon, WaveIcon } from "@bitwarden/assets/svg";
@@ -197,7 +206,7 @@ export class LoginComponent implements OnInit, OnDestroy {
    */
   private async defaultOnInit(): Promise<boolean> {
     const params = await firstValueFrom(this.activatedRoute.queryParams);
-    const paramEmailIsSet = this.applyEmailFromQueryParams(params);
+    const paramEmailIsSet = await this.applyEmailFromQueryParams(params);
 
     if (!paramEmailIsSet) {
       await this.loadRememberedEmail();
@@ -230,6 +239,16 @@ export class LoginComponent implements OnInit, OnDestroy {
     // (if it was found in query params or was the remembered email)
     await this.initSsoRequiredTracking();
 
+    // The router reuses this component when only the query params change, for example when the
+    // desktop account switcher sends the user to log into another logged-out account.
+    this.activatedRoute.queryParams
+      .pipe(
+        skip(1),
+        switchMap((changedParams) => this.applyChangedEmailQueryParam(changedParams)),
+        takeUntil(this.destroy$),
+      )
+      .subscribe();
+
     // Listen for region/environment changes after initialization.
     // If the user switches region while on the password entry screen, we need to clear
     // any stale authentication errors from the previous region and refresh the prelogin
@@ -254,16 +273,28 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   /**
    * Pre-fills the email form control from `?email=…` if the param is present and
-   * looks like an email. Returns whether the form control was set so the caller
-   * can decide whether to fall back to the remembered email.
+   * looks like an email, and makes it the login email. Returns whether the form control
+   * was set so the caller can decide whether to fall back to the remembered email.
    */
-  private applyEmailFromQueryParams(params: Params | null): boolean {
+  private async applyEmailFromQueryParams(params: Params | null): Promise<boolean> {
     const qParamsEmail = params?.email;
-    if (qParamsEmail != null && qParamsEmail.indexOf("@") > -1) {
-      this.formGroup.controls.email.setValue(qParamsEmail);
-      return true;
+    if (qParamsEmail == null || qParamsEmail.indexOf("@") === -1) {
+      return false;
     }
-    return false;
+    this.formGroup.controls.email.setValue(qParamsEmail);
+    // Later login steps, such as login with device, read the email from this service. Without
+    // this, they would use a stale email, for example the remembered one.
+    await this.loginEmailService.setLoginEmail(qParamsEmail);
+    return true;
+  }
+
+  /** Restarts email entry with the email from changed query params, if they carry one. */
+  private async applyChangedEmailQueryParam(params: Params): Promise<void> {
+    if (params.email == null || params.email === this.emailFormControl.value) {
+      return;
+    }
+    await this.toggleLoginUiState(LoginUiState.EMAIL_ENTRY);
+    await this.applyEmailFromQueryParams(params);
   }
 
   private async desktopOnInit(): Promise<void> {

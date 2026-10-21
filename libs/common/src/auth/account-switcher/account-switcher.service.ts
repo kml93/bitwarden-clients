@@ -7,14 +7,16 @@ import { ActiveAccountResolution } from "./active-account-resolution.type";
 
 /**
  * Decides which accounts the user can switch to, and builds the data an account switcher shows.
- * A logged-out account is never a switch target and never appears in {@link entries$}.
+ * A logged-out account is never chosen as a switch target automatically. {@link entries$} still
+ * lists a logged-out account that kept its email, so the user can pick it to log back in.
  * Performing the switch and navigating afterward stay with each client.
  */
 export abstract class AccountSwitcherService {
   /**
-   * The accounts that are not logged out, split into the active account and the others, and
-   * whether another account can be added. Emits one value per change, so the active account and
-   * the others never disagree, for example during an account switch.
+   * The accounts to show, split into the active account and the others, and whether another
+   * account can be added. Includes accounts that are not logged out, plus inactive logged-out
+   * accounts that kept their email. Emits one value per change, so the active account and the
+   * others never disagree, for example during an account switch.
    */
   abstract entries$: Observable<AccountSwitcherEntries>;
 

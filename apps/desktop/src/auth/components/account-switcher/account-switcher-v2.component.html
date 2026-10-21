@@ -81,14 +81,22 @@
                     <span class="sr-only"> / </span>{{ account.serverHostname }}
                   </small>
                 </span>
-                @if (account.status === authStatus.Unlocked) {
-                  <bit-badge variant="secondary" startIcon="bwi-unlock">{{
-                    "unlocked" | i18n
-                  }}</bit-badge>
-                } @else {
-                  <bit-badge variant="secondary" startIcon="bwi-lock">{{
-                    "locked" | i18n
-                  }}</bit-badge>
+                @switch (account.status) {
+                  @case (authStatus.Unlocked) {
+                    <bit-badge variant="secondary" startIcon="bwi-unlock">{{
+                      "unlocked" | i18n
+                    }}</bit-badge>
+                  }
+                  @case (authStatus.LoggedOut) {
+                    <bit-badge variant="secondary" startIcon="bwi-sign-in">{{
+                      "loggedOut" | i18n
+                    }}</bit-badge>
+                  }
+                  @default {
+                    <bit-badge variant="secondary" startIcon="bwi-lock">{{
+                      "locked" | i18n
+                    }}</bit-badge>
+                  }
                 }
               </span>
             </button>
